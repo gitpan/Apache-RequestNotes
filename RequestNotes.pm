@@ -3,8 +3,10 @@ package Apache::RequestNotes;
 #---------------------------------------------------------------------
 #
 # usage: PerlInitHandler Apache::RequestNotes
-#        PerlSetVar  MaxPostSize 1024          optional size in K that
-#                                              is allowed to be POSTed
+#        PerlSetVar  MaxPostSize 1024          optional size in bytes
+#                                              allowed to be POSTed
+#
+#        PerlSetVar  DisableUploads On         forbid file uploads 
 #        
 #---------------------------------------------------------------------
 
@@ -16,7 +18,7 @@ use Apache::Log;
 use Apache::Request;
 use strict;
 
-$Apache::RequestNotes::VERSION = '0.03';
+$Apache::RequestNotes::VERSION = '0.04';
 
 # set debug level
 #  0 - messages at info or debug log levels
@@ -28,12 +30,13 @@ sub handler {
 # initialize request object and variables
 #---------------------------------------------------------------------
   
-  my $r               = shift;
-  my $log             = $r->server->log;
+  my $r         = shift;
+  my $log       = $r->server->log;
 
-  my $maxsize         = $r->dir_config('MaxPostSize') || 1024;
+  my $maxsize   = $r->dir_config('MaxPostSize') || 1024;
+  my $uploads   = $r->dir_config('DisableUploads') =~ m/Off/i ? 0 : 1;
 
-  my %cookies         = ();         # hash for cookie names and values
+  my %cookies   = ();               # hash for cookie names and values
 
 #---------------------------------------------------------------------
 # do some preliminary stuff...
@@ -41,37 +44,6 @@ sub handler {
 
   $log->info("Using Apache::RequestNotes");
 
-#---------------------------------------------------------------------
-# parse the form data
-#---------------------------------------------------------------------
-
-  # this routine works for either a get or post request
-  my $apr = Apache::Request->new($r, POST_MAX => $maxsize,
-                                     DISABLE_UPLOADS => 1);
-  my $status = $apr->parse;
-
-  if ($status) {
-    # I don't know what to do here, but rather than error out, do
-    # something that says there was a parse failure.
-    # GET data is still available, but POST looks hosed...
-
-    $Apache::RequestNotes::err = 1;
-   
-    $log->error("\tApache::RequestNotes encountered a parsing error!");
-    $log->info("Exiting Apache::RequestNotes");
-    return OK;
-  }
-
-  my $input = $apr->parms;   # this is a hashref tied to Apache::Table
-
-  if ($Apache::RequestNotes::DEBUG) {
-    $input->do(sub {
-      my ($key, $value) = @_;
-      $log->info("\tquery string: name = $key, value = $value");
-      1;
-    });
-  }
-  
 #---------------------------------------------------------------------
 # grab the cookies
 #---------------------------------------------------------------------
@@ -88,10 +60,54 @@ sub handler {
   }
 
 #---------------------------------------------------------------------
+# parse the form data
+#---------------------------------------------------------------------
+
+  # this routine works for either a get or post request
+  my $apr = Apache::Request->new($r, POST_MAX => $maxsize,
+                                     DISABLE_UPLOADS => $uploads);
+  my $status = $apr->parse;
+
+  if ($status) {
+    # I don't know what to do here, but rather than return
+    # SERVER_ERROR, do something that says there was a parse failure.
+    # GET data is still available, but POST looks hosed...
+    # problems with uploads are caught here as well.
+
+    $Apache::RequestNotes::err = $status;
+   
+    $log->error("Apache::RequestNotes encountered a parsing error!");
+    $log->info("Exiting Apache::RequestNotes");
+    return OK;
+  }
+
+  my $input = $apr->parms;   # this is a hashref tied to Apache::Table
+
+  if ($Apache::RequestNotes::DEBUG) {
+    $input->do(sub {
+      my ($key, $value) = @_;
+      $log->info("\tquery string: name = $key, value = $value");
+      1;
+    });
+  }
+  
+#---------------------------------------------------------------------
+# create an array of all Apache::Upload objects
+#---------------------------------------------------------------------
+
+  my @uploads = $apr->upload;    # all the Apache::Upload objects
+
+  foreach my $upload (@uploads) {
+    $log->info("\tupload: size = " . $upload->size .
+       ", type = " . $upload->type) if $Apache::RequestNotes::DEBUG; 
+  }
+
+#---------------------------------------------------------------------
 # put the form and cookie data in a pnote for access by other handlers
 #---------------------------------------------------------------------
 
   $r->pnotes(INPUT => $input);
+  $r->pnotes(UPLOADS => \@uploads) if @uploads;
   $r->pnotes(COOKIES => \%cookies) if %cookies;
 
 #---------------------------------------------------------------------
@@ -109,91 +125,121 @@ __END__
 
 =head1 NAME
 
-Apache::RequestNotes - allow easy, consistent access to cookie and 
-                       form data across each request phase.
+Apache::RequestNotes - pass form and cookie data in pnotes
 
 =head1 SYNOPSIS
 
-  httpd.conf:
+httpd.conf:
 
-    PerlInitHandler Apache::RequestNotes
-    PerlSetVar MaxPostSize 1024
+  PerlInitHandler Apache::RequestNotes
+  PerlSetVar MaxPostSize 1024
+  PerlSetVar DisableUploads On
 
-  MaxUploadSize is in bytes and defaults to 1024, thus is optional.
+  MaxPostSize is in bytes and defaults to 1024, thus is optional.
+  DisableUploads defaults to On, and likewise is optional.
 
 =head1 DESCRIPTION
 
-  Apache::RequestNotes provides a simple interface allowing all phases
-  of the request cycle access to cookie or form input parameters in a 
-  consistent manner.  Behind the scenes, it uses libapreq functions to 
-  parse request data and puts references to the data in pnotes.
-
+Apache::RequestNotes provides a simple interface allowing all phases
+of the request cycle access to cookie or form input parameters in a
+consistent manner.  Behind the scenes, it uses libapreq functions to
+parse request data and puts references to the data objects in pnotes.
 
 =head1 EXAMPLE
 
-  some Perl*Handler or Registry script:
+httpd.conf:
 
-    my $input      = $r->pnotes('INPUT');
-    my $cookies    = $r->pnotes('COOKIES');
-   
-    # GET and POST data
-    my $foo        = $input->get('foo');
- 
-    # cookie data
-    my $bar        = $cookies->{'bar'};      # one way
+  PerlInitHandler Apache::RequestNotes
 
-    my %cookies    = %$cookies if $cookies;  # check, just to be safe
-    my $baz        = $cookies{'baz'};        # another way
+some Perl*Handler or Registry script:
 
-  httpd.conf:
+  my $input      = $r->pnotes('INPUT');   # Apache::Table reference
+  my $uploads    = $r->pnotes('UPLOADS'); # Apache::Upload array ref
+  my $cookies    = $r->pnotes('COOKIES'); # hash reference
+  
+  # GET and POST data
+  my $foo        = $input->get('foo');
 
-    PerlInitHandler Apache::RequestNotes
+  # uploaded files
+  foreach my $upload (@$uploads) {
+    my $name     = $upload->name'
+    my $fh       = $upload->fh;
+    my $size     = $upload->size;
+  }
+
+  # cookie data
+  my $bar        = $cookies->{'bar'};      # one way
+
+  my %cookies    = %$cookies if $cookies;  # check, just to be safe
+  my $baz        = $cookies{'baz'};        # another way
 
 
-  After using Apache::RequestNotes, $cookies contains a hashref with
-  the names and values of all cookies sent back to your domain and
-  path.  $input contains a reference to an Apache::Table object and
-  can be accessed via Apache::Table methods.  If a form contains
-  both GET and POST data, both are available via $input.
+After using Apache::RequestNotes:
+  o $cookies contains a reference to a hash with the names and values
+    of all cookies sent back to your domain and path.
 
-  Once the request is past the PerlInit phase, all other phases can
-  have access to form input and cookie data without parsing it
-  themselves. This relieves some strain, especially when the GET or 
-  POST data is required by numerous handlers along the way.
+  o $input contains a reference to an Apache::Table object and can be
+    accessed via Apache::Table methods - if a form contains both GET
+    and POST data, both are available via $input.
+
+  o $uploads contains a reference to an array containing all the
+    Apache::Upload objects for the request, which can be used to
+    access uploaded file information.
+
+Once the request is past the Init phase, all other phases can have
+access to the form input and cookie data without parsing it
+themselves. This relieves some strain, especially when the GET or POST
+data is required by numerous handlers along the way.
 
 =head1 NOTES
 
-  Apache::RequestNotes does not allow for file uploads. If either a 
-  file upload was attempted, or the POST data exceeds MaxPostSize,
-  rather than return SERVER_ERROR it sets $Apache::RequestNotes::err.
+Apache::RequestNotes can really be called from just about any request
+phase.  Thus, if you need to postpone data parsing until after uri 
+translation, using RequestNotes as a PerlFixupHandler should work
+just fine.  Keep in mind that Apache::RequestNotes returns OK, which
+would preclude it's use in conjuction with other PerlTransHandlers
+and PerlTypeHandlers (but it doesn't belong there anyway).
 
-  Verbose debugging is enabled by setting the variable
-  $Apache::RequestNotes::DEBUG=1 to or greater. To turn off all debug
-  information, set your apache LogLevel above info level.
+MaxPostSize applies to file uploads as well as POST data, so if you
+plan on uploading files bigger than 1K, you will need to change the
+default.
 
-  This is alpha software, and as such has not been tested on multiple
-  platforms or environments.  It requires PERL_INIT=1, PERL_LOG_API=1, 
-  and maybe other hooks to function properly.  Doug MacEachern's 
-  libapreq is also required - you can get it from CPAN under the 
-  Apache tree.
+$Apache::RequestNotes:err is set if libapreq reports a problem
+parsing the form data, thus it can be used to verify whether $input
+and $uploads contain valid objects.  Apache::RequestNotes will _not_
+return SERVER_ERROR in the event libapreq encounters an error.  This
+may change in future releases.
+
+Verbose debugging is enabled by setting the variable
+$Apache::RequestNotes::DEBUG=1 to or greater. To turn off all debug
+information, set your apache LogLevel above info level.
+
+This is alpha software, and as such has not been tested on multiple
+platforms or environments.  It requires PERL_INIT=1, PERL_LOG_API=1,
+and maybe other hooks to function properly. Doug MacEachern's libapreq
+is also required - you can get it from CPAN under the Apache tree.
 
 =head1 FEATURES/BUGS
 
-  No known bugs or unexpected features at this time.
+Since POST data cannot be read more than once per request, it is 
+improper to both use this module and try to gather form data again
+via Apache::Request or CGI.pm from, say, a cgi script.  I suppose
+this is a feature...
 
 =head1 SEE ALSO
 
-  perl(1), mod_perl(1), Apache(3), libapreq(1), Apache::Table(3)
+perl(1), mod_perl(1), Apache(3), Apache::Request(3), libapreq(1),
+Apache::Table(3)
 
 =head1 AUTHOR
 
-  Geoffrey Young <geoff@cpan.org>
+Geoffrey Young <geoff@cpan.org>
 
 =head1 COPYRIGHT
 
-  Copyright 2000 Geoffrey Young - all rights reserved.
+Copyright 2000 Geoffrey Young - all rights reserved.
 
-  This library is free software; you can redistribute it and/or
-  modify it under the same terms as Perl itself.
+This library is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
 
 =cut

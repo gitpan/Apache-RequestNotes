@@ -1,89 +1,108 @@
 NAME
 
-Apache::RequestNotes - allow easy, consistent access to cookie and 
-                       form data across each request phase.
+Apache::RequestNotes - pass form and cookie data in pnotes
 
 SYNOPSIS
 
-  httpd.conf:
+httpd.conf:
 
-    PerlInitHandler Apache::RequestNotes
-    PerlSetVar MaxPostSize 1024
+  PerlInitHandler Apache::RequestNotes
+  PerlSetVar MaxPostSize 1024
+  PerlSetVar DisableUploads On
 
-  MaxUploadSize is in bytes and defaults to 1024, thus is optional.
+  MaxPostSize is in bytes and defaults to 1024, thus is optional.
+  DisableUploads defaults to On, and likewise is optional.
 
 DESCRIPTION
 
-  Apache::RequestNotes provides a simple interface allowing all phases
-  of the request cycle access to cookie or form input parameters in a 
-  consistent manner.  Behind the scenes, it uses libapreq functions to 
-  parse request data and puts references to the data in pnotes.
-
+Apache::RequestNotes provides a simple interface allowing all phases
+of the request cycle access to cookie or form input parameters in a
+consistent manner.  Behind the scenes, it uses libapreq functions to
+parse request data and puts references to the data objects in pnotes.
 
 EXAMPLE
 
-  some Perl*Handler or Registry script:
+httpd.conf:
 
-    my $input      = $r->pnotes('INPUT');
-    my $cookies    = $r->pnotes('COOKIES');
-   
-    # GET and POST data
-    my $foo        = $input->get('foo');
- 
-    # cookie data
-    my $bar        = $cookies->{'bar'};      # one way
+  PerlInitHandler Apache::RequestNotes
 
-    my %cookies    = %$cookies if $cookies;  # check, just to be safe
-    my $baz        = $cookies{'baz'};        # another way
+some Perl*Handler or Registry script:
 
-  httpd.conf:
+  my $input      = $r->pnotes('INPUT');   # Apache::Table reference
+  my $uploads    = $r->pnotes('UPLOADS'); # Apache::Upload array ref
+  my $cookies    = $r->pnotes('COOKIES'); # hash reference
+  
+  # GET and POST data
+  my $foo        = $input->get('foo');
 
-    PerlInitHandler Apache::RequestNotes
+  # uploaded files
+  foreach my $upload (@$uploads) {
+    my $name     = $upload->name'
+    my $fh       = $upload->fh;
+    my $size     = $upload->size;
+  }
+
+  # cookie data
+  my $bar        = $cookies->{'bar'};      # one way
+
+  my %cookies    = %$cookies if $cookies;  # check, just to be safe
+  my $baz        = $cookies{'baz'};        # another way
 
 
-  After using Apache::RequestNotes, $cookies contains a hashref with
-  the names and values of all cookies sent back to your domain and
-  path.  $input contains a reference to an Apache::Table object and
-  can be accessed via Apache::Table methods.  If a form contains
-  both GET and POST data, both are available via $input.
+After using Apache::RequestNotes:
+  o $cookies contains a reference to a hash with the names and values
+    of all cookies sent back to your domain and path.
 
-  Once the request is past the PerlInit phase, all other phases can
-  have access to form input and cookie data without parsing it
-  themselves. This relieves some strain, especially when the GET or 
-  POST data is required by numerous handlers along the way.
+  o $input contains a reference to an Apache::Table object and can be
+    accessed via Apache::Table methods - if a form contains both GET
+    and POST data, both are available via $input.
+
+  o $uploads contains a reference to an array containing all the
+    Apache::Upload objects for the request, which can be used to
+    access uploaded file information.
+
+Once the request is past the Init phase, all other phases can have
+access to the form input and cookie data without parsing it
+themselves. This relieves some strain, especially when the GET or
+POST data is required by numerous handlers along the way.
 
 NOTES
 
-  Apache::RequestNotes does not allow for file uploads. If either a 
-  file upload was attempted, or the POST data exceeds MaxPostSize,
-  rather than return SERVER_ERROR it sets $Apache::RequestNotes::err.
+MaxPostSize applies to file uploads as well as POST data, so if you
+plan on uploading files bigger than 1K, you will need to change the
+default.
 
-  Verbose debugging is enabled by setting the variable
-  $Apache::RequestNotes::DEBUG=1 to or greater. To turn off all debug
-  information, set your apache LogLevel above info level.
+$Apache::RequestNotes:err is set if libapreq reports a problem
+parsing the form data, thus it can be used to verify whether $input
+and $uploads contain valid objects.
 
-  This is alpha software, and as such has not been tested on multiple
-  platforms or environments.  It requires PERL_INIT=1, PERL_LOG_API=1, 
-  and maybe other hooks to function properly.  Doug MacEachern's 
-  libapreq is also required - you can get it from CPAN under the 
-  Apache tree.
+Verbose debugging is enabled by setting the variable
+$Apache::RequestNotes::DEBUG=1 to or greater. To turn off all debug
+information, set your apache LogLevel above info level.
+
+This is alpha software, and as such has not been tested on multiple
+platforms or environments.  It requires PERL_INIT=1,
+PERL_LOG_API=1, and maybe other hooks to function properly.
+Doug MacEachern's libapreq is also required - you can get it from
+CPAN under the Apache tree.
 
 FEATURES/BUGS
 
-  No known bugs or unexpected features at this time.
+No known bugs or unexpected features at this time.
 
 SEE ALSO
 
-  perl(1), mod_perl(1), Apache(3), libapreq(1), Apache::Table(3)
+perl(1), mod_perl(1), Apache(3), Apache::Request(3),
+libapreq(1), Apache::Table(3)
 
 AUTHOR
 
-  Geoffrey Young <geoff@cpan.org>
+Geoffrey Young <geoff@cpan.org>
 
 COPYRIGHT
 
-  Copyright 2000 Geoffrey Young - all rights reserved.
+Copyright 2000 Geoffrey Young - all rights reserved.
 
-  This library is free software; you can redistribute it and/or
-  modify it under the same terms as Perl itself.
+This library is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
 
