@@ -12,3 +12,12 @@ Revision history for Perl extension Apache::RequestNotes.
             Tobias Hoellrich
             Ken Y. Clark
 
+0.02  3.15.2000
+	- extended interface to return a reference to 
+          an Apache::Table object for $input.  This allows
+          for multi-keyed form data.
+          Thanks to Doug MacEachern and Matt Sergent for
+          their tips and efforts.
+        - replaced pnotes('PARSE_ERROR') with 
+          $Apache::RequestNotes::err
+        - updated pod

@@ -16,7 +16,7 @@ use Apache::Log;
 use Apache::Request;
 use strict;
 
-$Apache::RequestNotes::VERSION = '0.01';
+$Apache::RequestNotes::VERSION = '0.02';
 
 # set debug level
 #  0 - messages at info or debug log levels
@@ -33,7 +33,6 @@ sub handler {
 
   my $maxsize         = $r->dir_config('MaxPostSize') || 1024;
 
-  my %input;          # hash for form input
   my %cookies;        # hash for cookie names and values
 
 #---------------------------------------------------------------------
@@ -52,25 +51,27 @@ sub handler {
   my $status = $apr->parse;
 
   if ($status) {
-    # I don't know what to do here, but rather than error out, notify
-    # everyone there was a parse failure so they can deal with it...
+    # I don't know what to do here, but rather than error out, do
+    # something that says there was a parse failure.
+    # GET data is still available, but POST looks hosed...
 
-    $r->pnotes(PARSE_ERROR => 1);
+    $Apache::RequestNotes::err = 1;
    
     $log->warn("\tApache::RequestNotes encountered a parsing error!");
-    $log->log("Exiting Apache::RequestNotes");
+    $log->info("Exiting Apache::RequestNotes");
     return OK;
   }
 
-  my @keys = $apr->param; 
-  
-  foreach (@keys) {
-    $input{$_} = $apr->param($_);
+  my $input = $apr->parms;   # this is a hashref tied to Apache::Table
 
-    $log->info("\tquery string: name = $_, value = $input{$_}") 
-      if $Apache::RequestNotes::DEBUG;
+  if ($Apache::RequestNotes::DEBUG) {
+    $input->do(sub {
+      my ($key, $value) = @_;
+      $log->info("\tquery string: name = $key, value = $value");
+      1;
+    });
   }
- 
+  
 #---------------------------------------------------------------------
 # grab the cookies
 #---------------------------------------------------------------------
@@ -80,7 +81,7 @@ sub handler {
   foreach (sort keys %cookiejar) {
     my $cookie = $cookiejar{$_};
 
-    $cookies{$cookie->name} =  $cookie->value; 
+    $cookies{$cookie->name} = $cookie->value; 
 
     $log->info("\tcookie: name = " . $cookie->name . 
        ", value = " . $cookie->value) if $Apache::RequestNotes::DEBUG;
@@ -90,7 +91,7 @@ sub handler {
 # put the form and cookie data in a pnote for access by other handlers
 #---------------------------------------------------------------------
 
-  $r->pnotes(INPUT => \%input);
+  $r->pnotes(INPUT => $input);
   $r->pnotes(COOKIES => \%cookies);
 
 #---------------------------------------------------------------------
@@ -108,8 +109,8 @@ __END__
 
 =head1 NAME
 
-Apache::RequestNotes - extract cookies and CGI form parameters for 
-                       each request.
+Apache::RequestNotes - allow easy, consistent access to cookie and 
+                       form data across each request phase.
 
 =head1 SYNOPSIS
 
@@ -118,41 +119,51 @@ Apache::RequestNotes - extract cookies and CGI form parameters for
     PerlInitHandler Apache::RequestNotes
     PerlSetVar MaxPostSize 1024
 
-  MaxUploadSize is in bytes and defaults to 1024.
+  MaxUploadSize is in bytes and defaults to 1024, thus is optional.
 
 =head1 DESCRIPTION
 
-  Apache::RequestNotes provides a simple interface allowing all parts
-  of the request cycle access to cookie or CGI input parameters in a 
+  Apache::RequestNotes provides a simple interface allowing all phases
+  of the request cycle access to cookie or form input parameters in a 
   consistent manner.
 
 =head1 EXAMPLE
 
   some Perl*Handler or Registry script:
 
-    my $cookies           = $r->pnotes('COOKIES');
-    my %cookies           = %$cookies;
-    my $input             = $r->pnotes('INPUT');
-    my %input             = %$input;
+    my $input      = $r->pnotes('INPUT');
+    my $cookies    = $r->pnotes('COOKIES');
+   
+    # GET and POST data
+    my $foo        = $input->get('foo');
+ 
+    # cookie data
+    my $bar        = $cookies->{'bar'};      # one way
+
+    my %cookies    = %$cookies if $cookies;  # check, just to be safe
+    my $baz        = $cookies{'baz'};        # another way
 
   httpd.conf:
 
     PerlInitHandler Apache::RequestNotes
-    PerlSetVar MaxUploadSize 1024
 
-  After using Apache::RequestNotes and dereferencing the hashes, 
-  %input will contain both GET and POST data, and %cookies will
-  contain the names and values of all cookies sent back to your domain
-  and path.  Once the request is past the PerlInit phase, all other
-  phases can have access to form input and cookie data without parsing
-  it themselves. This relieves some strain, especially when the GET or 
+
+  After using Apache::RequestNotes, $cookies contains a hashref with
+  the names and values of all cookies sent back to your domain and
+  path.  $input contains a reference to an Apache::Table object and
+  can be accessed via Apache::Table methods.  If a form contains
+  both GET and POST data, both are available via $input.
+
+  Once the request is past the PerlInit phase, all other phases can
+  have access to form input and cookie data without parsing it
+  themselves. This relieves some strain, especially when the GET or 
   POST data is required by numerous handlers along the way.
 
 =head1 NOTES
 
   Apache::RequestNotes does not allow for file uploads. If either a 
   file upload was attempted, or the POST data exceeds MaxPostSize,
-  rather than barf it sets $r->pnotes('PARSE_ERROR').
+  rather than return SERVER_ERROR it sets $Apache::RequestNotes::err.
 
   Verbose debugging is enabled by setting the variable
   $Apache::RequestNotes::DEBUG=1 to or greater. To turn off all debug
@@ -166,11 +177,11 @@ Apache::RequestNotes - extract cookies and CGI form parameters for
 
 =head1 FEATURES/BUGS
 
-  When parsing forms with duplicate keys some data is lost.  
+  No known bugs or unexpected features at this time.
 
 =head1 SEE ALSO
 
-  perl(1), mod_perl(1), Apache(3), libapreq(1)
+  perl(1), mod_perl(1), Apache(3), libapreq(1), Apache::Table(3)
 
 =head1 AUTHOR
 
