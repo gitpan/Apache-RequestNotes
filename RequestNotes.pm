@@ -18,7 +18,7 @@ use Apache::Log;
 use Apache::Request;
 use strict;
 
-$Apache::RequestNotes::VERSION = '0.04';
+$Apache::RequestNotes::VERSION = '0.05';
 
 # set debug level
 #  0 - messages at info or debug log levels

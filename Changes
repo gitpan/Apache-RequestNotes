@@ -41,3 +41,8 @@ Revision history for Perl extension Apache::RequestNotes.
         - documented that using RequestNotes then trying to 
           use Apache::Request or CGI.pm to get to POSTed data
           is both redundant and problematic.
+
+0.05  05.15.2000
+        - updated README to be consistent with perldoc (whoops)
+        - corrected installation to install to a versioned
+          directory (whoops)

@@ -63,10 +63,17 @@ After using Apache::RequestNotes:
 
 Once the request is past the Init phase, all other phases can have
 access to the form input and cookie data without parsing it
-themselves. This relieves some strain, especially when the GET or
-POST data is required by numerous handlers along the way.
+themselves. This relieves some strain, especially when the GET or POST
+data is required by numerous handlers along the way.
 
 NOTES
+
+Apache::RequestNotes can really be called from just about any request
+phase.  Thus, if you need to postpone data parsing until after uri 
+translation, using RequestNotes as a PerlFixupHandler should work
+just fine.  Keep in mind that Apache::RequestNotes returns OK, which
+would preclude it's use in conjuction with other PerlTransHandlers
+and PerlTypeHandlers (but it doesn't belong there anyway).
 
 MaxPostSize applies to file uploads as well as POST data, so if you
 plan on uploading files bigger than 1K, you will need to change the
@@ -74,26 +81,30 @@ default.
 
 $Apache::RequestNotes:err is set if libapreq reports a problem
 parsing the form data, thus it can be used to verify whether $input
-and $uploads contain valid objects.
+and $uploads contain valid objects.  Apache::RequestNotes will _not_
+return SERVER_ERROR in the event libapreq encounters an error.  This
+may change in future releases.
 
 Verbose debugging is enabled by setting the variable
 $Apache::RequestNotes::DEBUG=1 to or greater. To turn off all debug
 information, set your apache LogLevel above info level.
 
 This is alpha software, and as such has not been tested on multiple
-platforms or environments.  It requires PERL_INIT=1,
-PERL_LOG_API=1, and maybe other hooks to function properly.
-Doug MacEachern's libapreq is also required - you can get it from
-CPAN under the Apache tree.
+platforms or environments.  It requires PERL_INIT=1, PERL_LOG_API=1,
+and maybe other hooks to function properly. Doug MacEachern's libapreq
+is also required - you can get it from CPAN under the Apache tree.
 
 FEATURES/BUGS
 
-No known bugs or unexpected features at this time.
+Since POST data cannot be read more than once per request, it is 
+improper to both use this module and try to gather form data again
+via Apache::Request or CGI.pm from, say, a cgi script.  I suppose
+this is a feature...
 
 SEE ALSO
 
-perl(1), mod_perl(1), Apache(3), Apache::Request(3),
-libapreq(1), Apache::Table(3)
+perl(1), mod_perl(1), Apache(3), Apache::Request(3), libapreq(1),
+Apache::Table(3)
 
 AUTHOR
 
