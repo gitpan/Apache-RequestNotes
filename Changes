@@ -46,3 +46,9 @@ Revision history for Perl extension Apache::RequestNotes.
         - updated README to be consistent with perldoc (whoops)
         - corrected installation to install to a versioned
           directory (whoops)
+
+0.06  12.27.2000
+        - changed Apache::Request->new() call to instance()
+        - documented availability of Apache::Request->instance() 
+        - initialized Apache::RequestNotes::err properly
+        - minor pod changes
