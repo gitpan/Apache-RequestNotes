@@ -1,0 +1,14 @@
+Revision history for Perl extension Apache::RequestNotes.
+
+0.01  Tue Mar 14 09:22:17 2000
+	- original version; created by h2xs 1.19
+        - many kudos and gratitude to those who offered
+          their suggestions and improvements prior to
+          the first release:
+            Matt Sergeant
+            G.W. Haywood
+            Christian Gilmore
+            Philippe M. Chiasson
+            Tobias Hoellrich
+            Ken Y. Clark
+

@@ -1,0 +1,77 @@
+NAME
+
+Apache::RequestNotes - extract cookies and CGI form parameters for 
+                       each request.
+
+SYNOPSIS
+
+  httpd.conf:
+
+    PerlInitHandler Apache::RequestNotes
+    PerlSetVar MaxPostSize 1024
+
+  MaxUploadSize is in bytes and defaults to 1024.
+
+DESCRIPTION
+
+  Apache::RequestNotes provides a simple interface allowing all parts
+  of the request cycle access to cookie or CGI input parameters in a 
+  consistent manner.
+
+EXAMPLE
+
+  some Perl*Handler or Registry script:
+
+    my $cookies           = $r->pnotes('COOKIES');
+    my %cookies           = %$cookies;
+    my $input             = $r->pnotes('INPUT');
+    my %input             = %$input;
+
+  httpd.conf:
+
+    PerlInitHandler Apache::RequestNotes
+    PerlSetVar MaxUploadSize 1024
+
+  After using Apache::RequestNotes and dereferencing the hashes, 
+  %input will contain both GET and POST data, and %cookies will
+  contain the names and values of all cookies sent back to your domain
+  and path.  Once the request is past the PerlInit phase, all other
+  phases can have access to form input and cookie data without parsing
+  it themselves. This relieves some strain, especially when the GET or 
+  POST data is required by numerous handlers along the way.
+
+NOTES
+
+  Apache::RequestNotes does not allow for file uploads. If either a 
+  file upload was attempted, or the POST data exceeds MaxPostSize,
+  rather than barf it sets $r->pnotes('PARSE_ERROR').
+
+  Verbose debugging is enabled by setting the variable
+  $Apache::RequestNotes::DEBUG=1 to or greater. To turn off all debug
+  information, set your apache LogLevel above info level.
+
+  This is alpha software, and as such has not been tested on multiple
+  platforms or environments.  It requires PERL_INIT=1, PERL_LOG_API=1, 
+  and maybe other hooks to function properly.  Doug MacEachern's 
+  libapreq is also required - you can get it from CPAN under the 
+  Apache tree.
+
+FEATURES/BUGS
+
+  When parsing forms with duplicate keys some data is lost.  
+
+SEE ALSO
+
+  perl(1), mod_perl(1), Apache(3), libapreq(1)
+
+AUTHOR
+
+  Geoffrey Young <geoff@cpan.org>
+
+COPYRIGHT
+
+  Copyright 2000 Geoffrey Young - all rights reserved.
+
+  This library is free software; you can redistribute it and/or
+  modify it under the same terms as Perl itself.
+
