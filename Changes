@@ -21,3 +21,8 @@ Revision history for Perl extension Apache::RequestNotes.
         - replaced pnotes('PARSE_ERROR') with 
           $Apache::RequestNotes::err
         - updated pod
+
+0.03  4.19.2000
+        - only add COOKIES pnotes if there are cookies to add
+        - changed parsing error log message to error from warn
+        - minor pod changes

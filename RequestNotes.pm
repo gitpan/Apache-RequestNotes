@@ -3,9 +3,9 @@ package Apache::RequestNotes;
 #---------------------------------------------------------------------
 #
 # usage: PerlInitHandler Apache::RequestNotes
-#        PerlSetVar  MaxPostSize 1024         # size in K that is
-#                                               allowed to be POSTed
-#
+#        PerlSetVar  MaxPostSize 1024          optional size in K that
+#                                              is allowed to be POSTed
+#        
 #---------------------------------------------------------------------
 
 use 5.004;
@@ -16,12 +16,12 @@ use Apache::Log;
 use Apache::Request;
 use strict;
 
-$Apache::RequestNotes::VERSION = '0.02';
+$Apache::RequestNotes::VERSION = '0.03';
 
 # set debug level
 #  0 - messages at info or debug log levels
 #  1 - verbose output at info or debug log levels
-$Apache::RequestNotes::DEBUG = 1;
+$Apache::RequestNotes::DEBUG = 0;
 
 sub handler {
 #---------------------------------------------------------------------
@@ -33,7 +33,7 @@ sub handler {
 
   my $maxsize         = $r->dir_config('MaxPostSize') || 1024;
 
-  my %cookies;        # hash for cookie names and values
+  my %cookies         = ();         # hash for cookie names and values
 
 #---------------------------------------------------------------------
 # do some preliminary stuff...
@@ -57,7 +57,7 @@ sub handler {
 
     $Apache::RequestNotes::err = 1;
    
-    $log->warn("\tApache::RequestNotes encountered a parsing error!");
+    $log->error("\tApache::RequestNotes encountered a parsing error!");
     $log->info("Exiting Apache::RequestNotes");
     return OK;
   }
@@ -92,7 +92,7 @@ sub handler {
 #---------------------------------------------------------------------
 
   $r->pnotes(INPUT => $input);
-  $r->pnotes(COOKIES => \%cookies);
+  $r->pnotes(COOKIES => \%cookies) if %cookies;
 
 #---------------------------------------------------------------------
 # wrap up...
@@ -125,7 +125,9 @@ Apache::RequestNotes - allow easy, consistent access to cookie and
 
   Apache::RequestNotes provides a simple interface allowing all phases
   of the request cycle access to cookie or form input parameters in a 
-  consistent manner.
+  consistent manner.  Behind the scenes, it uses libapreq functions to 
+  parse request data and puts references to the data in pnotes.
+
 
 =head1 EXAMPLE
 

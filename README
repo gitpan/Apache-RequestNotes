@@ -16,7 +16,9 @@ DESCRIPTION
 
   Apache::RequestNotes provides a simple interface allowing all phases
   of the request cycle access to cookie or form input parameters in a 
-  consistent manner.
+  consistent manner.  Behind the scenes, it uses libapreq functions to 
+  parse request data and puts references to the data in pnotes.
+
 
 EXAMPLE
 
@@ -84,3 +86,4 @@ COPYRIGHT
 
   This library is free software; you can redistribute it and/or
   modify it under the same terms as Perl itself.
+
